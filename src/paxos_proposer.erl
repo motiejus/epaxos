@@ -2,29 +2,28 @@
 
 -include("include/paxos.hrl").
 
--behaviour(gen_fsm).
+-behaviour(gen_server).
 
 %% API
 -export([propose/2, promise/3]).
 
-%% gen_fsm API
--export([init/1, handle_info/3, handle_event/3, handle_sync_event/4,
-        terminate/3, code_change/4]).
-
-%% States
--export([phase1/2, phase2/2]).
+%% gen_server API
+-export([init/1, handle_info/2, handle_call/3, handle_cast/2,
+        terminate/2, code_change/3]).
 
 -record(state, {
         acceptors :: list(pid()),
 
-        % list of acceptors that promised in phase1
-        promisers = [] :: list(pid()),
+        % number of promises from acceptors
+        promises = 0 :: non_neg_integer(),
 
-        % next number for this proposer is n + PAXOS_MOD
+        init_n :: non_neg_integer(),
+
+        % number of running round
         n :: non_neg_integer(),
 
         % Value that might be proposed in phase2
-        val :: term()
+        val :: {non_neg_integer(), term()}
     }).
 
 %% =============================================================================
@@ -32,56 +31,70 @@
 %% =============================================================================
 
 %% @doc Executed by application in order to propose a value
-propose(FsmRef, Value) ->
-    gen_fsm:send_event(FsmRef, {propose, Value}).
+propose(ServerRef, Value) ->
+    gen_server:cast(ServerRef, {propose, Value}).
 
 %% @doc Called by acceptor on promise that it will not accept any proposals
-%% numbered less than N, with the highest PropN it has accepted
-promise(FsmRef, PropN, ValN) ->
-    gen_fsm:send_event(FsmRef, {promise, PropN, ValN}).
+%% numbered less than N (our call), with the HighestAcceptedVal.
+-spec promise(pid(), non_neg_integer(), {non_neg_integer(), term()}) -> ok.
+promise(ServerRef, PropN, HighestAcceptedVal) ->
+    gen_server:cast(ServerRef, {promise, PropN, HighestAcceptedVal}).
 
 %% =============================================================================
 %% gen_fsm API
 %% =============================================================================
 
 init({N, Acceptors}) ->
-    {ok, phase1, #state{n=N, acceptors=Acceptors}}.
+    {ok, #state{init_n=N, n=N, acceptors=Acceptors}}.
 
-phase1({propose, Value}, #state{n=N, acceptors=Acceptors}=State) ->
-    NewN = N + ?PAXOS_MOD,
+% Phase1
+handle_cast({propose, Val},
+        #state{init_n=InitN, n=N, acceptors=Acceptors}=State) ->
+    NewN = (N div InitN + 1) * ?PAXOS_MOD + InitN,
     lists:foreach(
         fun(Acceptor) ->
                 paxos_acceptor:prepare(Acceptor, NewN, self())
         end,
         Acceptors
     ),
-    {next_state, phase2, State#state{n=NewN, val=Value}}.
+    {noreply, State#state{n=NewN, val={0, Val}, promises=0}};
 
-phase2({promise, NP, ValP}, #state{promisers=Promisers, acceptors=Acceptors,
-        n=N, val=Val}) when length(Promisers) >= length(Acceptors) div 2 + 1 ->
-    {NewN, NewVal} = new_val(NP, N, ValP, Val),
-    lists:foreach(
-        fun(Acceptor) ->
-                paxos_acceptor:accept(Acceptor, NewN, NewVal)
-        end,
-        Acceptors
-    ),
-    {stop, {majority_there, NewN, NewVal}}.
+% Phase2
+handle_cast({promise, N, HighestAccepted},
+        #state{n=N, promises=Promises, val=Val}=State) ->
+    {HighestAcceptedN, HighestAcceptedVal} = HighestAccepted,
+    {_, PrevN} = Val,
+    NewVal = if
+        HighestAcceptedN > PrevN andalso HighestAcceptedVal =/= undefined ->
+            HighestAccepted;
+        true ->
+            Val
+    end,
+    accept_if_majority(State#state{promises=Promises+1, val=NewVal});
 
-handle_info(_, _, State) -> {stop, bad_info, State}.
-handle_event(_, _, State) -> {stop, bad_event, State}.
-handle_sync_event(_, _, _, State) -> {stop, bad_sync_event, State}.
-terminate(_, _, _) -> ok.
-code_change(_OldVsn, StateName, State, _Extra) -> {ok, StateName, State}.
+handle_cast({promise, N, Val}, #state{n=CurrN}=State) ->
+    lager:debug("Old promise: ~p, ~p, current N: ~p", [N, Val, CurrN]),
+    {noreply, State}.
+
+handle_info(_, State) -> {stop, bad_info, State}.
+handle_call(_, _, State) -> {stop, bad_call, State}.
+terminate(_, _) -> ok.
+code_change(_OldVsn, State, _Extra) -> {ok, State}.
 
 
 %% =============================================================================
 %% Helpers
 %% =============================================================================
 
-new_val(NP, _N, undefined, Val) ->
-    {NP, Val};
-new_val(NP, N, ValP, _Val) when NP > N ->
-    {NP, ValP};
-new_val(_NP, N, _ValP, Val) ->
-    {N, Val}.
+accept_if_majority(#state{promises=Promises, acceptors=Acceptors, n=N,
+        val={_, Val}}=State) when Promises > length(Acceptors) div 2 ->
+    lists:foreach(
+        fun(Acceptor) ->
+                paxos_acceptor:accept(Acceptor, N, Val)
+        end,
+        Acceptors
+    ),
+    {noreply, State};
+
+accept_if_majority(State) ->
+    {noreply, State}.

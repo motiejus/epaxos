@@ -54,7 +54,7 @@ handle_cast({accept, NewN, NewVal}, #state{prepn=N, learners=Learners})
         when NewN >= N ->
     lists:foreach(
         fun(Learner) ->
-                paxos_learner:learn(Learner, {self(), NewN, NewVal})
+                paxos_learner:learn(Learner, {NewN, NewVal})
         end,
         Learners
     ),
@@ -64,6 +64,6 @@ handle_cast({accept, NewN, _NewVal}, #state{prepn=N}=State) when NewN < N ->
     {noreply, State}.
 
 handle_info(_, State) -> {stop, bad_info, State}.
-handle_call(_, _, State) -> {stop, bad_info, State}.
+handle_call(_, _, State) -> {stop, bad_call, State}.
 terminate(_, _) -> ok.
 code_change(_OldVsn, State, _Extra) -> {ok, State}.

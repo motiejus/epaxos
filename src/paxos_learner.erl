@@ -10,7 +10,7 @@
         terminate/2, code_change/3]).
 
 -record(state, {
-        acceptors :: list(pid()),
+        num_acceptors :: non_neg_integer(),
 
         % {N, Value} -> no. of acceptors that gave this pair
         learns = orddict:new() :: orddict:orddict()
@@ -21,23 +21,23 @@
 %% API
 %% =============================================================================
 
-learn(ServerRef, {Acceptor, N, Val}) ->
-    gen_server:cast(ServerRef, {learn, Acceptor, N, Val}).
+learn(ServerRef, {N, Val}) ->
+    gen_server:cast(ServerRef, {learn, N, Val}).
 
 
 %% =============================================================================
 %% gen_server API
 %% =============================================================================
 
-init(Acceptors) ->
-    {ok, #state{acceptors=Acceptors}}.
+init(NumAcceptors) ->
+    {ok, #state{num_acceptors=NumAcceptors}}.
 
 handle_cast({learn, _Acceptor, N, Val},
-        #state{learns=Learns, acceptors=Acceptors}=State) ->
+        #state{learns=Learns, num_acceptors=NumAcceptors}=State) ->
     NewLearns = orddict:update_counter({N, Val}, 1, Learns),
     case orddict:fetch({N, Val}, NewLearns) of
-        Num when Num >= length(Acceptors) div 2 + 1 ->
-            io:format("Learned ~p: ~p~n", [N, Val]),
+        Num when Num > NumAcceptors div 2 ->
+            lager:info("Learned ~p: ~p~n", [N, Val]),
             {stop, {learned, N, Val}};
         _ ->
             {noreply, State#state{learns=NewLearns}}

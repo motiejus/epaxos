@@ -38,7 +38,7 @@ handle_cast({learn, N, Val},
     case orddict:fetch({N, Val}, NewLearns) of
         Num when Num > NumAcceptors div 2 ->
             lager:info("~p learned ~p: ~p~n", [self(), N, Val]),
-            {noreply, State};
+            {stop, normal, State};
         _ ->
             {noreply, State#state{learns=NewLearns}}
     end.

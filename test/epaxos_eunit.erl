@@ -38,18 +38,10 @@ basic_one_value() ->
     paxos_proposer:propose(P2, a5),
     paxos_proposer:propose(P3, a6),
     timer:sleep(100),
+    paxos_proposer:propose(P1, a7),
     Proposers,
     ok.
 
-
-start_learners(NumLearners, NumAcceptors) ->
-    lists:map(
-        fun(_) ->
-                {ok, Pid} = gen_server:start_link(paxos_learner, [NumAcceptors], []),
-                Pid
-        end,
-        lists:seq(1, NumLearners)
-    ).
 
 start_acceptors(NumAcceptors, Learners) ->
     lists:map(
@@ -67,4 +59,13 @@ start_proposers(NumProposers, Acceptors) ->
                 Pid
         end,
         lists:seq(1, NumProposers)
+    ).
+
+start_learners(NumLearners, NumAcceptors) ->
+    lists:map(
+        fun(_) ->
+                {ok, Pid} = gen_server:start(paxos_learner, [NumAcceptors], []),
+                Pid
+        end,
+        lists:seq(1, NumLearners)
     ).

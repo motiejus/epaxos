@@ -94,7 +94,7 @@ accept_if_majority(#state{promises=Promises, acceptors=Acceptors, n=N,
         end,
         Acceptors
     ),
-    {noreply, State#state{promises=0}};
+    {noreply, State};
 
 accept_if_majority(State) ->
     {noreply, State}.

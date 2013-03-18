@@ -38,19 +38,19 @@ accept(ServerRef, NewN, NewVal) ->
 %% gen_server API
 %% =============================================================================
 
-init(Learners) ->
+init([Learners]) ->
     {ok, #state{learners=Learners}}.
 
 handle_cast({prepare, N, Pid}, #state{propn=PropN, prepn=PrepN,
         valn=ValN}=State) when N > PrepN ->
-    paxos_proposer:promise(Pid, PropN, ValN),
+    paxos_proposer:promise(Pid, N, {PropN, ValN}),
     {noreply, State#state{prepn=N}};
 
 %% @TODO notify proposer to stop the round
 handle_cast({prepare, N, _Pid}, #state{prepn=PrepN}=State) when N =< PrepN ->
     {noreply, State};
 
-handle_cast({accept, NewN, NewVal}, #state{prepn=N, learners=Learners})
+handle_cast({accept, NewN, NewVal}, #state{prepn=N, learners=Learners}=State)
         when NewN >= N ->
     lists:foreach(
         fun(Learner) ->
@@ -58,7 +58,7 @@ handle_cast({accept, NewN, NewVal}, #state{prepn=N, learners=Learners})
         end,
         Learners
     ),
-    {stop, {accepted, NewN, NewVal}};
+    {noreply, #state{learners=Learners}};
 
 handle_cast({accept, NewN, _NewVal}, #state{prepn=N}=State) when NewN < N ->
     {noreply, State}.

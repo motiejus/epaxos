@@ -44,7 +44,7 @@ promise(ServerRef, PropN, HighestAcceptedVal) ->
 %% gen_fsm API
 %% =============================================================================
 
-init({N, Acceptors}) ->
+init([N, Acceptors]) ->
     {ok, #state{init_n=N, n=N, acceptors=Acceptors}}.
 
 % Phase1

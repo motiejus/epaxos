@@ -29,16 +29,16 @@ learn(ServerRef, {N, Val}) ->
 %% gen_server API
 %% =============================================================================
 
-init(NumAcceptors) ->
+init([NumAcceptors]) ->
     {ok, #state{num_acceptors=NumAcceptors}}.
 
-handle_cast({learn, _Acceptor, N, Val},
+handle_cast({learn, N, Val},
         #state{learns=Learns, num_acceptors=NumAcceptors}=State) ->
     NewLearns = orddict:update_counter({N, Val}, 1, Learns),
     case orddict:fetch({N, Val}, NewLearns) of
         Num when Num > NumAcceptors div 2 ->
             lager:info("Learned ~p: ~p~n", [N, Val]),
-            {stop, {learned, N, Val}};
+            {noreply, State#state{learns=orddict:new()}};
         _ ->
             {noreply, State#state{learns=NewLearns}}
     end.

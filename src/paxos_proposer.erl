@@ -50,7 +50,7 @@ init([N, Acceptors]) ->
 % Phase1
 handle_cast({propose, Val},
         #state{init_n=InitN, n=N, acceptors=Acceptors}=State) ->
-    NewN = (N div InitN + 1) * ?PAXOS_MOD + InitN,
+    NewN = (N div ?PAXOS_MOD + 1) * ?PAXOS_MOD + InitN,
     lists:foreach(
         fun(Acceptor) ->
                 paxos_acceptor:prepare(Acceptor, NewN, self())

@@ -30,8 +30,13 @@ basic_test_() ->
 basic_one_value() ->
     Learners = start_learners(?NUM_LEARNERS, ?NUM_ACCEPTORS),
     Acceptors = start_acceptors(?NUM_ACCEPTORS, Learners),
-    [Proposer|_] = Proposers = start_proposers(?NUM_PROPOSERS, Acceptors),
-    paxos_proposer:propose(Proposer, yadda),
+    [P1, P2, P3] = Proposers = start_proposers(?NUM_PROPOSERS, Acceptors),
+    paxos_proposer:propose(P1, a1),
+    paxos_proposer:propose(P2, a2),
+    paxos_proposer:propose(P3, a3),
+    paxos_proposer:propose(P1, a4),
+    paxos_proposer:propose(P2, a5),
+    paxos_proposer:propose(P3, a6),
     timer:sleep(100),
     Proposers,
     ok.

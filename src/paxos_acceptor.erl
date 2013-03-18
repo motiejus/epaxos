@@ -58,7 +58,7 @@ handle_cast({accept, NewN, NewVal}, #state{prepn=N, learners=Learners}=State)
         end,
         Learners
     ),
-    {noreply, #state{learners=Learners}};
+    {noreply, State#state{propn=NewN, valn=NewVal}};
 
 handle_cast({accept, NewN, _NewVal}, #state{prepn=N}=State) when NewN < N ->
     {noreply, State}.

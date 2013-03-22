@@ -13,6 +13,9 @@ In order to use it, add the following dependency to ``rebar.config``::
     }.
 
 
+Just to run the tests, do ``make test``. It will download the deps, compile
+and run xref and eunit tests.
+
 Quick start
 -----------
 

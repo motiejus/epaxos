@@ -13,7 +13,10 @@
         num_acceptors :: non_neg_integer(),
 
         % {N, Value} -> no. of acceptors that gave this pair
-        learns = orddict:new() :: orddict:orddict()
+        learns = orddict:new() :: orddict:orddict(),
+
+        % Executed when value is learnt
+        learn_fun :: epaxos_types:learn_fun()
     }).
 
 
@@ -29,15 +32,17 @@ learn(ServerRef, {N, Val}) ->
 %% gen_server API
 %% =============================================================================
 
-init([NumAcceptors]) ->
-    {ok, #state{num_acceptors=NumAcceptors}}.
+init([NumAcceptors, LearnFun]) ->
+    {ok, #state{num_acceptors=NumAcceptors, learn_fun=LearnFun}}.
 
-handle_cast({learn, N, Val},
-        #state{learns=Learns, num_acceptors=NumAcceptors}=State) ->
+handle_cast({learn, N, Val}, #state{
+            learns=Learns,
+            num_acceptors=NumAcceptors,
+            learn_fun=Fun}=State) ->
     NewLearns = orddict:update_counter({N, Val}, 1, Learns),
     case orddict:fetch({N, Val}, NewLearns) of
         Num when Num > NumAcceptors div 2 ->
-            lager:info("~p learned ~p: ~p~n", [self(), N, Val]),
+            Fun(Val),
             {stop, normal, State};
         _ ->
             {noreply, State#state{learns=NewLearns}}

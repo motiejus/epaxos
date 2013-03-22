@@ -28,44 +28,30 @@ basic_test_() ->
     }.
 
 basic_one_value() ->
-    Learners = start_learners(?NUM_LEARNERS, ?NUM_ACCEPTORS),
-    Acceptors = start_acceptors(?NUM_ACCEPTORS, Learners),
-    [P1, P2, P3] = Proposers = start_proposers(?NUM_PROPOSERS, Acceptors),
+    Self = self(),
+    LearnFun = fun(Val) ->
+            lager:info("learned ~p~n", [Val]),
+            Self ! {learnt, Val}
+    end,
+    Learners = epaxos:start_learners(?NUM_LEARNERS, ?NUM_ACCEPTORS, LearnFun),
+    Acceptors = epaxos:start_acceptors(?NUM_ACCEPTORS, Learners),
+    [P1, P2, P3] = epaxos:start_proposers(?NUM_PROPOSERS, Acceptors),
     paxos_proposer:propose(P1, a1),
     paxos_proposer:propose(P2, a2),
     paxos_proposer:propose(P3, a3),
     paxos_proposer:propose(P1, a4),
     paxos_proposer:propose(P2, a5),
     paxos_proposer:propose(P3, a6),
-    timer:sleep(100),
+    timer:sleep(30),
     paxos_proposer:propose(P1, a7),
-    Proposers,
-    ok.
+    Stuff = gather_stuff([], ?NUM_LEARNERS),
+    % Assert only 1 value is learnt
+    ?assertEqual(1, length(lists:usort(Stuff))).
 
-
-start_acceptors(NumAcceptors, Learners) ->
-    lists:map(
-        fun(_) ->
-                {ok, Pid} = gen_server:start_link(paxos_acceptor, [Learners], []),
-                Pid
-        end,
-        lists:seq(1, NumAcceptors)
-    ).
-
-start_proposers(NumProposers, Acceptors) ->
-    lists:map(
-        fun(N) ->
-                {ok, Pid} = gen_server:start_link(paxos_proposer, [N, Acceptors], []),
-                Pid
-        end,
-        lists:seq(1, NumProposers)
-    ).
-
-start_learners(NumLearners, NumAcceptors) ->
-    lists:map(
-        fun(_) ->
-                {ok, Pid} = gen_server:start(paxos_learner, [NumAcceptors], []),
-                Pid
-        end,
-        lists:seq(1, NumLearners)
-    ).
+gather_stuff(Acc, 0) ->
+    Acc;
+gather_stuff(Acc, N) ->
+    receive
+        {learnt, Val} ->
+            gather_stuff([Val|Acc], N-1)
+    end.

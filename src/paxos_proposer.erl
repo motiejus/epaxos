@@ -31,6 +31,7 @@
 %% =============================================================================
 
 %% @doc Executed by application in order to propose a value
+-spec propose(pid(), epaxos_types:payload()) -> ok.
 propose(ServerRef, Value) ->
     gen_server:cast(ServerRef, {propose, Value}).
 

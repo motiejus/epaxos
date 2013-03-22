@@ -2,7 +2,7 @@ Classic Paxos library implementation
 ====================================
 
 This is a Classic Paxos implementation in Erlang which primary goal is the
-ability to easily integrate it to your application.
+ability to easily integrate it to your existing Erlang/OTP application.
 
 In order to use it, add the following dependency to ``rebar.config``::
 
@@ -21,13 +21,13 @@ to know the number of learners, acceptors and proposers you want to have.
 
 Start the electorate::
 
-    Fun = fun(Value) ->
-        lager:info("Learnt ~p", [Value]).
-
     start_electorate() ->
+        Fun = fun(Value) ->
+            lager:info("Learnt ~p", [Value])
+        end,
         Learners = epaxos:start_learners(?NUM_LEARNERS, ?NUM_ACCEPTORS, Fun),
         Acceptors = epaxos:start_acceptors(?NUM_ACCEPTORS, Learners),
-        [P1|_] = Proposers = epaxos:start_proposers(?NUM_PROPOSERS, Acceptors).
+        Proposers = epaxos:start_proposers(?NUM_PROPOSERS, Acceptors).
 
 ``Fun`` will be called whenever a value is learnt.
 
